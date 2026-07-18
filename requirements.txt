@@ -1,0 +1,12 @@
+# Pinned to the 0.3 langchain stack. langchain 1.x removed RetrievalQA from
+# langchain.chains and changed langchain_core.messages, which breaks the
+# starter code and the ollama/google integrations. Do not unpin casually.
+langchain<0.4
+langchain-community<0.4
+langchain-text-splitters<0.4
+langchain-ollama<0.3
+langchain-google-genai<3
+faiss-cpu
+pypdf
+streamlit
+python-dotenv

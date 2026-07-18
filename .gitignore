@@ -1,0 +1,16 @@
+# NEVER commit API keys
+.env
+
+# Cached vector indexes (rebuilt locally, large)
+faiss_index*/
+
+# Data: 10-K PDFs are large. Team decides whether to commit these.
+# If you DO commit them, delete the next line.
+data/*.pdf
+
+__pycache__/
+*.pyc
+.DS_Store
+.ipynb_checkpoints/
+venv/
+.venv/
