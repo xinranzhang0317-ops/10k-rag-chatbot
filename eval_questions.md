@@ -3,7 +3,7 @@
 **Project:** AI Essentials for Business Final RAG Chatbot  
 **Prepared for:** Model evaluation, RAG tuning, prompt testing, and boundary analysis  
 **Source documents:** Alphabet, Amazon, and Microsoft FY2025 Form 10-K filings  
-**Important:** All dollar figures are in **USD billions** unless otherwise stated.
+**Important:** All dollar figures are in **USD billions** unless otherwise stated
 
 ---
 
