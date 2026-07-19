@@ -2,63 +2,47 @@
 Report the winning numbers here. Member 1 applies them to config.py.
 Do not edit app.py.
 
-Corpus: Alphabet/Amazon/Microsoft FY2025 10-Ks (the three eval-question companies).
-LLM frozen to gemini-3.1-flash-lite, temp 0, for all runs so scores compare
-like-for-like. Accuracy = score vs Member 5's key, 0-3 per question, /30 total
-(retrieval-sensitive /24 in parens). Settings are per-chunk and company-agnostic,
-so they carry to the 5-company app; pinned pages (run K-L) exist for the three only.
+## Method
+Each experiment tested one retrieval configuration by asking the same 10 evaluation questions (eval_questions.md) and scoring every answer 0–3 against
+Member 5's answer key. Maximum score is 30. Eight of the questions mainly test retrieval quality; that sub-score (max 24) is shown in parentheses.
 
-| chunk_size | chunk_overlap | k_per_company | embedding | Accuracy | Index time | Notes |
+Experiments are labeled A through L in the order they were run. A is the baseline grid (9 combinations of chunk size and k). Each later experiment changed one thing at a time and kept everything that worked. The corpus was the three companies used in the evaluation questions (Alphabet, Amazon, Microsoft). The language model was fixed to gemini-3.1-flash-lite at temperature 0 for every run, so score differences come only from retrieval changes. Full per-question scores are in experiments/m2_scores.py, and the script is experiments/m2_tuning.py.
+
+## Results
+| Run | chunk_size | overlap | Retrieval design | Embedding | Score | Notes |
 |---|---|---|---|---|---|---|
-| 2000 | 200 | 3 | Ollama nomic | untested | — | config.py placeholder — can test on request |
-| 500 | 50 | k=4 global | nomic | 9.5/30 | ~29s | worst tier; tables cut mid-figure |
-| 500 | 50 | k=15 global | nomic | 14/30 | cached | |
-| 1000 | 100 | k=4 global | nomic | 8.5/30 | ~29s | k=4 starves companies entirely |
-| 1000 | 100 | k=15 global | nomic | 18/30 | cached | |
-| 1500 | 150 | k=15 global | nomic | 18.5/30 (14/24) | ~28s | best baseline (A) |
-| 1500 | 150 | k=15 global | **mxbai-embed-large** | 21.5/30 (16/24) | 74s | B: embedding swap alone +2 |
-| 1500 | 150 | k=15 global | mxbai + query expansion | 24/30 (18/24) | cached | C |
-| 1500 | 150 | 5/company | mxbai, balanced | 22.5/30 (16.5/24) | cached | D |
-| 1500 | 150 | 8/company | mxbai, balanced + expansion | 23.5/30 (17.5/24) | cached | E |
-| 1500 | 150 | 8/company | mxbai + page-junk cleaning | 24/30 (18.5/24) | 69s | F: 929→906 chunks; first exact Amazon capex/cash-tax |
-| 1500 | 150 | 8/co + 3-10 stmt | mxbai + statement tagging | 24.5/30 (19/24) | 67s | G/H/I: identical results — fetch_k bug (see challenges) |
-| 1500 | 150 | 8/co + 10 stmt | mxbai + **fetch_k=2000** | 26.5/30 (20.5/24) | cached | J: MSFT tax reconciliation table retrieved 1st time in 19 runs |
-| 1500 | 150 | 8/co + stmt + pins | mxbai + pinned pages + 6 prompt rules | 29/30 (23.5/24) | cached | K: integrated prototype |
-| 1500 | 150 | 8/co + stmt + pins | K + enumerate-before-compare tie rule | **30/30 (24/24)** | cached | **L: all 10 questions fully correct, incl. our Q2 with both ties** |
+| — | 2000 | 200 | 3 per company | nomic | not tested | current config.py values |
+| A | 500 | 50 | top 4 overall | nomic | 9.5/30 | worst tier; small chunks cut tables apart mid-figure |
+| A | 500 | 50 | top 15 overall | nomic | 14/30 | |
+| A | 1000 | 100 | top 4 overall | nomic | 8.5/30 | retrieving only 4 chunks often left whole companies out |
+| A | 1000 | 100 | top 15 overall | nomic | 18/30 | |
+| A | 1500 | 150 | top 15 overall | nomic | 18.5/30 (14/24) | best baseline |
+| B | 1500 | 150 | top 15 overall | mxbai-embed-large | 21.5/30 (16/24) | changing only the embedding model gained 3 points |
+| C | 1500 | 150 | top 15 overall | mxbai + query expansion | 24/30 (18/24) | financial keywords appended to the search query |
+| D | 1500 | 150 | 5 per company | mxbai | 22.5/30 (16.5/24) | separate search per company |
+| E | 1500 | 150 | 8 per company | mxbai + expansion | 23.5/30 (17.5/24) | C and D combined |
+| F | 1500 | 150 | 8 per company | mxbai + page cleaning | 24/30 (18.5/24) | removed print headers from every PDF page; first run to find Amazon's exact capex and cash-tax figures |
+| G–I | 1500 | 150 | 8 per company + statement slots | mxbai | 24.5/30 (19/24) | three runs produced identical results — caused by the fetch_k bug (see challenges.md) |
+| J | 1500 | 150 | 8 per company + statement slots | mxbai + fetch_k=2000 | 26.5/30 (20.5/24) | first run to retrieve Microsoft's tax reconciliation table |
+| K | 1500 | 150 | J + pinned pages | mxbai + answer rules in prompt | 29/30 (23.5/24) | |
+| L | 1500 | 150 | same as K | K + revised tie-checking rule | 30/30 (24/24) | all 10 questions answered fully correctly |
 
-**Recommended config:**
-- `CHUNK_SIZE = 1500`, `CHUNK_OVERLAP = 150` (tested optimum of 500/1000/1500;
-  current 2000 is untested — happy to run it if wanted)
-- `K_PER_COMPANY = 8` (raise the sidebar slider max)
-- Embedding: add `mxbai-embed-large` to EMBEDDING_OPTIONS and make it default
-  (biggest single quality lever; one-time `ollama pull mxbai-embed-large`)
-- Keep `fetch_k=2000` on every filtered search (app.py already has it — our
-  G/H/I runs independently proved why it's essential)
-- Ingestion (proven, diffs in experiments/m2_tuning.py): (1) strip the browser
-  print headers the professor's PDFs carry on every page (clean_page_text —
-  this alone rescued the cash-flow-statement chunks after 14 failed configs);
-  (2) tag statement pages via STATEMENT_MARKERS with doc_type="statement";
-  (3) guarantee up to 10 statement chunks per company on top of the 8;
-  (4) for the demo, pin the core statement pages per company (PINNED_PAGES
-  dict in m2_tuning.py) — this is what closed Q5/Q8/Q10.
+- *"top N overall": one search across all three filings mixed together, keeping the N most similar chunks. This is the starter-code behavior. Its weakness: a comparison question can come back with 15 Amazon chunks and zero Alphabet chunks, and the model then cannot answer for Alphabet.*
+- *"N per company": a separate search for each company, N chunks each, so every company always appears in the context.*
+- *"statement slots": pages containing the core financial tables (income statement, cash flow statement, tax and segment tables) are labeled during loading, and a second search limited to those labeled pages adds extra chunks per company. Number-heavy tables rarely resemble the question text, so they kept losing the normal search to prose sections.*
+- *"pinned pages": a short fixed list of core statement pages per company is always included in the context, with no search involved. This was needed for two Microsoft table pages that lost even the statement-slot search.*
 
-**Key findings**
-- Impact ranking: embedding model > ingestion cleaning > fetch_k fix >
-  balanced retrieval / query expansion > chunk_size/k (within baseline,
-  bigger monotonically won; cs500 and k=4 are unusable).
-- Vocabulary match predicts success better than any parameter: Q3 (question
-  wording appears verbatim in the table) scored 3/3 in all runs including the
-  worst; Q5/Q8/Q10 (little overlap with their target tables) fell last.
-- Four hallucination specimens documented (all arithmetic-over-partial-context:
-  summed partial tables, derived absent figures, cross-company misattribution)
-  → motivated the 6 prompt rules in runs K–L; see Notes-to-Member-4 in
-  experiments/m2_tuning.py BASE_PROMPT. Decisive technique for tie-reporting:
-  force the model to enumerate all line items BEFORE comparing magnitudes.
-- Answer-key correction (confirmed by Member 4's independent A/B run):
-  Microsoft ETR is 17.6%/3.4pts per the reconciliation table, not the 18%/3.0
-  MD&A rounding.
-- Honest caveats: single run per config (differences <~1pt are noise); K/L are
-  an integrated prototype (retrieval + prompt + pinned pages, crossing into
-  M4's layer) rather than controlled tuning runs, and the pinned-page list
-  comes from failure analysis, so test the integrated app on the actual 10
-  questions before recording.
+## Recommended config.py values
+- CHUNK_SIZE = 1500, CHUNK_OVERLAP = 150 (best of the tested values 500, 1000, 1500; the current 2000 was not part of the tested grid)
+- K_PER_COMPANY = 8 (the sidebar slider maximum needs raising)
+- Add mxbai-embed-large to EMBEDDING_OPTIONS and make it the default. This was the single largest quality improvement. Requires each member to run `ollama pull mxbai-embed-large` once.
+- Keep fetch_k=2000 on every filtered search. app.py already does this; runs G–I independently demonstrated why it is necessary.
+- Apply the ingestion steps from experiments/m2_tuning.py: page-header cleaning, statement-page labeling, statement slots, and (for the demo) the pinned page list.
+
+## Findings
+1. Ranked by impact: embedding model choice > cleaning the PDF text > the fetch_k fix > per-company retrieval and query expansion > chunk size and k. Within the baseline grid, larger chunks and larger k were always better; 500-character chunks and k=4 were unusable.
+2. How closely the question's wording matches the target table's wording predicted success better than any parameter. Q3, whose wording appears verbatim in the table it needs, scored 3/3 in every run including the worst. Q5, Q8, and Q10, whose wording shares little with their target tables, were the last to reach full marks.
+3. The 10-K PDFs carry browser print headers (timestamps and URLs) on every page. This identical text on every page made all chunks look more alike to the embedding model and buried the financial tables. Removing it (run F) recovered table chunks that 14 prior configurations had failed to retrieve.
+4. Four cases were documented where the model produced a wrong number by doing arithmetic on incomplete context: summing part of a table as if it were the total, deriving a figure not present in the text, and attributing one company's figure to another. These motivated the answer rules added in runs K–L. The rule that resolved tie-reporting: require the model to list every line item with its magnitude before comparing, rather than asking it to "check for ties" in the abstract.
+5. Correction to the answer key, confirmed independently by Member 4's prompt test: Microsoft's effective tax rate per its reconciliation table is 17.6% (a 3.4-point difference from the statutory rate), not the rounded 18% stated in the MD&A section.
+6. Caveats: each configuration was run once, so differences under about one point should be treated as noise. Runs K and L combine retrieval changes with prompt rules and a page list chosen from failure analysis, so they are an integrated prototype rather than pure retrieval tuning, and the integrated app should be re-tested on the 10 questions before the demo recording.
