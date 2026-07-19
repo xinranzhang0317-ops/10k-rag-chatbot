@@ -1,6 +1,22 @@
 # RAG tuning results — Member 2
-Report the winning numbers here. Member 1 applies them to config.py.
-Do not edit app.py.
+## Summary: Config values to apply (Member 1)
+```python
+CHUNK_SIZE = 1500
+CHUNK_OVERLAP = 150
+K_PER_COMPANY = 8
+
+# add to EMBEDDING_OPTIONS:
+"Ollama (mxbai-embed-large)": {"provider": "ollama", "model": "mxbai-embed-large"},
+
+# change default:
+DEFAULT_EMBEDDING = "Ollama (mxbai-embed-large)"
+```
+- One-time setup per machine: `ollama pull mxbai-embed-large`
+- app.py: raise the k slider's max_value (8 is currently the ceiling)
+- Demo build: copy 3 code blocks from experiments/m2_tuning.py into app.py for better performance(Current Config code = 23/30; with these = 30/30 (run L)):
+  1. **clean_page_text** → apply per page in load_and_tag
+  2. **STATEMENT_MARKERS** + its if-line → same page loop
+  3. **PINNED_PAGES** + statement-slot search → chat handler after the per-company search
 
 ## Method
 Each experiment tested one retrieval configuration by asking the same 10 evaluation questions (eval_questions.md) and scoring every answer 0–3 against
