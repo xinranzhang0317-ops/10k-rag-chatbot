@@ -56,3 +56,65 @@ tier availability differs by key age and project.
 Each member makes their own free key (6 × 20/day). Fresh unspent key on
 presentation day.
 **Learned:** quota is a demo-day risk; rehearse the Ollama fallback switch.
+
+## Gemini model roulette blocked the experiment harness (Member 2, Jul 17-18)
+**Broke:** gemini-2.5-flash returned 404 "no longer available to new users" on a
+fresh key — even though ListModels still listed it. gemini-3.5-flash worked,
+then died at 20 requests/DAY (two tuning runs = 20 calls).
+**Fixed:** froze all experiments on gemini-3.1-flash-lite (usable daily quota,
+same model for every run so scores are comparable).
+**Learned:** ListModels shows retired models — availability differs by key age.
+For experiments, freeze one model that fits the quota math; the flash-latest
+alias Andrea uses is right for the app, wrong for controlled comparisons.
+
+## Gemini embeddings have a DAILY cap, not just per-minute (Member 2, Jul 17)
+**Broke:** Stage B with Gemini embeddings 429'd at ~180 chunks, then again at
+~90 more the next attempt, despite batching 90/min under the documented
+100/min limit. Waiting a minute did nothing.
+**Fixed:** substituted local mxbai-embed-large for the embedding comparison.
+(Turned out to be the single biggest quality lever anyway.)
+**Learned:** the free tier also caps embeddings around ~200/day. A 906-chunk
+corpus can't be embedded free even with perfect rate limiting. ~$1 of billing
+would unlock it — worth it if anyone wants the Gemini-embeddings datapoint.
+
+## Ollama embedder dies on large payloads (Member 2, Jul 17)
+**Broke:** `EOF` / connection reset on the tokenize port when embedding all
+900+ chunks in one FAISS.from_documents call.
+**Fixed:** batch 100 chunks per add_documents call. (Andrea independently
+landed on batch 64 in app.py — either works.)
+**Learned:** local embedders have memory limits instead of quotas. Batch
+everything.
+
+## Stale FAISS cache silently ignored ingestion changes (Member 2, Jul 18)
+**Broke:** added page-text cleaning and statement tagging, re-ran, got
+byte-identical answers — the changes appeared to do nothing.
+**Fixed:** the cache key only encodes embeddings+chunk_size+overlap, so the
+loader served the OLD index built from dirty, untagged text. `rm -rf` the
+cache folder before any run after changing load/clean/tag logic.
+**Learned:** metadata and cleaning bake in at index build time. If an
+ingestion change "did nothing," suspect the cache before the change.
+
+## The 10-K PDFs carry browser print headers in every page (Member 2, Jul 18)
+**Broke:** cash-flow-statement chunks never ranked in retrieval; Q5/Q10
+failed in 14 straight configs even with correct settings.
+**Fixed:** regex-stripped the `2026/4/13 16:18` timestamps, sec.gov/Archives
+URLs, and page-count artifacts stamped on every page (906 chunks vs 929
+dirty). Amazon's exact capex ($131,819M) and cash-tax figures retrieved for
+the first time immediately after.
+**Learned:** identical boilerplate on every page drags all chunk embeddings
+toward each other and drowns the signal. Clean before you embed — it beat
+every parameter change we tried.
+
+## fetch_k starvation hit the tuning harness too (Member 2, Jul 18)
+**Broke:** three successive configs (statement tagging, broader markers,
+doubled quota) returned chunk-for-chunk identical retrievals — parameter
+changes provably did nothing.
+**Fixed:** same root cause Andrea logged above: filtered similarity_search
+only filters the global top-20 unless fetch_k is raised. Added fetch_k=2000;
+the very next run retrieved Microsoft's tax reconciliation table for the
+first time in 19 runs and fixed our own team question's Microsoft answer
+(17.6%, not the 18% MD&A rounding).
+**Learned:** independent replication of the fetch_k bug from a second
+codebase — and the tell is different: not just wrong chunk counts, but
+identical retrievals across configs that should differ. If tuning a
+parameter changes nothing, the parameter isn't reaching the search.
