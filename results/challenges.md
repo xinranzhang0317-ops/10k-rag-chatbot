@@ -57,64 +57,27 @@ Each member makes their own free key (6 × 20/day). Fresh unspent key on
 presentation day.
 **Learned:** quota is a demo-day risk; rehearse the Ollama fallback switch.
 
-## Gemini model roulette blocked the experiment harness (Member 2, Jul 17-18)
-**Broke:** gemini-2.5-flash returned 404 "no longer available to new users" on a
-fresh key — even though ListModels still listed it. gemini-3.5-flash worked,
-then died at 20 requests/DAY (two tuning runs = 20 calls).
-**Fixed:** froze all experiments on gemini-3.1-flash-lite (usable daily quota,
-same model for every run so scores are comparable).
-**Learned:** ListModels shows retired models — availability differs by key age.
-For experiments, freeze one model that fits the quota math; the flash-latest
-alias Andrea uses is right for the app, wrong for controlled comparisons.
+## Addition to the Gemini quota entries above: embeddings also have a daily cap (Member 2, Jul 17)
+**Broke:** Building the search index with Gemini embeddings failed with quota errors after about 180 chunks, and again after about 90 more the next day, even while staying under the documented limit of 100 requests per minute. Waiting between attempts did not help.
+**Fixed:** We switched the embedding comparison to a local model, mxbai-embed-large through Ollama, which has no quota.
+**Learned:** On top of the per minute limit Member 1 logged above, the free tier also caps embeddings at roughly 200 requests per day. Our corpus produces 906 chunks, so it cannot be embedded for free no matter how the requests are spaced. Enabling billing for roughly one dollar would remove the limit if anyone wants the Gemini embeddings comparison later. Additionally, we froze all runs on a single model, gemini-3.1-flash-lite, so that scores stay comparable. The gemini-flash-latest alias is right for the app but wrong for experiments, because the model behind it can change between runs.
 
-## Gemini embeddings have a DAILY cap, not just per-minute (Member 2, Jul 17)
-**Broke:** Stage B with Gemini embeddings 429'd at ~180 chunks, then again at
-~90 more the next attempt, despite batching 90/min under the documented
-100/min limit. Waiting a minute did nothing.
-**Fixed:** substituted local mxbai-embed-large for the embedding comparison.
-(Turned out to be the single biggest quality lever anyway.)
-**Learned:** the free tier also caps embeddings around ~200/day. A 906-chunk
-corpus can't be embedded free even with perfect rate limiting. ~$1 of billing
-would unlock it — worth it if anyone wants the Gemini-embeddings datapoint.
+## The local Ollama embedder crashes when given too much at once (Member 2, Jul 17)
+**Broke:** Sending all 900 plus chunks to the Ollama embedder in one call dropped the connection with an end of file error partway through.
+**Fixed:** We split the work into batches of 100 chunks per call. Member 1 independently settled on batches of 64 in the app. Either size works.
+**Learned:** Local embedding models have no quotas, but they do have memory limits. Any large embedding job should be sent in batches.
 
-## Ollama embedder dies on large payloads (Member 2, Jul 17)
-**Broke:** `EOF` / connection reset on the tokenize port when embedding all
-900+ chunks in one FAISS.from_documents call.
-**Fixed:** batch 100 chunks per add_documents call. (Andrea independently
-landed on batch 64 in app.py — either works.)
-**Learned:** local embedders have memory limits instead of quotas. Batch
-everything.
+## A saved index silently ignored our code changes (Member 2, Jul 18)
+**Broke:** We added code that cleans the PDF text and labels the financial statement pages, ran the experiment again, and got answers completely identical to the previous run. It looked like our changes did nothing.
+**Fixed:** The cause was the cache. The script saves the finished search index to disk and reloads it to save time, and the cache name only reflects the embedding model and chunk settings, not the text processing. So the script kept loading the old index built from the uncleaned text. Deleting the cache folder before rerunning fixed it.
+**Learned:** Text cleaning and page labels are baked into the index when it is built. If a change to loading or cleaning code appears to have no effect, delete the cached index before assuming the change failed.
 
-## Stale FAISS cache silently ignored ingestion changes (Member 2, Jul 18)
-**Broke:** added page-text cleaning and statement tagging, re-ran, got
-byte-identical answers — the changes appeared to do nothing.
-**Fixed:** the cache key only encodes embeddings+chunk_size+overlap, so the
-loader served the OLD index built from dirty, untagged text. `rm -rf` the
-cache folder before any run after changing load/clean/tag logic.
-**Learned:** metadata and cleaning bake in at index build time. If an
-ingestion change "did nothing," suspect the cache before the change.
+## The 10-K PDFs have browser print headers on every page (Member 2, Jul 18)
+**Broke:** The chunks containing the cash flow statements almost never came back from the search, so the questions about cash taxes and capital spending failed in 14 configurations in a row, even with otherwise correct settings.
+**Fixed:** Every page of the PDFs carries leftover text from being printed from a web browser, including a timestamp and a sec.gov address. We added a cleaning step that removes those lines before indexing. Immediately afterward, the search returned Amazon's exact capital expenditure and cash tax figures for the first time.
+**Learned:** Identical boilerplate on every page makes all chunks look more similar to each other in the index, which drowns out the content that matters. Cleaning the text before indexing improved results more than any setting we tuned.
 
-## The 10-K PDFs carry browser print headers in every page (Member 2, Jul 18)
-**Broke:** cash-flow-statement chunks never ranked in retrieval; Q5/Q10
-failed in 14 straight configs even with correct settings.
-**Fixed:** regex-stripped the `2026/4/13 16:18` timestamps, sec.gov/Archives
-URLs, and page-count artifacts stamped on every page (906 chunks vs 929
-dirty). Amazon's exact capex ($131,819M) and cash-tax figures retrieved for
-the first time immediately after.
-**Learned:** identical boilerplate on every page drags all chunk embeddings
-toward each other and drowns the signal. Clean before you embed — it beat
-every parameter change we tried.
-
-## fetch_k starvation hit the tuning harness too (Member 2, Jul 18)
-**Broke:** three successive configs (statement tagging, broader markers,
-doubled quota) returned chunk-for-chunk identical retrievals — parameter
-changes provably did nothing.
-**Fixed:** same root cause Andrea logged above: filtered similarity_search
-only filters the global top-20 unless fetch_k is raised. Added fetch_k=2000;
-the very next run retrieved Microsoft's tax reconciliation table for the
-first time in 19 runs and fixed our own team question's Microsoft answer
-(17.6%, not the 18% MD&A rounding).
-**Learned:** independent replication of the fetch_k bug from a second
-codebase — and the tell is different: not just wrong chunk counts, but
-identical retrievals across configs that should differ. If tuning a
-parameter changes nothing, the parameter isn't reaching the search.
+## Confirmation of the fetch_k bug above, seen from a different angle (Member 2, Jul 18)
+**Broke:** In our tuning experiments, three configurations in a row with different retrieval settings returned exactly the same chunks for every question. Changing settings provably did nothing.
+**Fixed:** Same root cause and same fix as Member 1's entry above: setting fetch_k to 2000 so the filtered search considers the whole index. On the very next run the search returned Microsoft's tax reconciliation table for the first time in 19 runs, which corrected the Microsoft part of our own team's question. The correct effective tax rate is 17.6 percent from the table, not the rounded 18 percent from the narrative section.
+**Learned:** The bug shows up differently depending on where you meet it. In the app the clue was wrong chunk counts. In experiments the clue was identical results across settings that should differ. If tuning a parameter changes nothing at all, the parameter is probably not reaching the search.
