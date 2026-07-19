@@ -1,5 +1,5 @@
 # RAG tuning results — Member 2
-## Summary: Config values to apply (Member 1)
+## Summary: Config.py values to apply (Member 1)
 ```python
 CHUNK_SIZE = 1500
 CHUNK_OVERLAP = 150
@@ -13,7 +13,7 @@ DEFAULT_EMBEDDING = "Ollama (mxbai-embed-large)"
 ```
 - One-time setup per machine: `ollama pull mxbai-embed-large`
 - app.py: raise the k slider's max_value (8 is currently the ceiling)
-- Demo build: copy 3 code blocks from experiments/m2_tuning.py into app.py for better performance(Current Config code = 23/30; with these = 30/30 (run L)):
+- Demo build: copy 3 code blocks from experiments/m2_tuning.py into app.py for better performance(the config.py values above alone = 23/30; with these = 30/30):
   1. **clean_page_text** → apply per page in load_and_tag
   2. **STATEMENT_MARKERS** + its if-line → same page loop
   3. **PINNED_PAGES** + statement-slot search → chat handler after the per-company search
