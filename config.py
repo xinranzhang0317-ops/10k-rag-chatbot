@@ -24,11 +24,6 @@ CHUNK_SIZE = 1500
 CHUNK_OVERLAP = 150
 K_PER_COMPANY = 8
 
-# Chunks retrieved PER COMPANY (not globally). With 3 companies selected and
-# K_PER_COMPANY=3, the LLM sees 9 chunks: 3 from each. This is what stops the
-# model from answering a comparison question using only Amazon's filing.
-# K_PER_COMPANY = 3
-
 # ---------------------------------------------------------------------------
 # Models  <-- MEMBER 3 OWNS THIS RECOMMENDATION
 # ---------------------------------------------------------------------------
