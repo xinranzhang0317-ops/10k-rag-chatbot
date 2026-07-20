@@ -53,7 +53,6 @@ This case shows that a RAG chatbot may retrieve and calculate all numbers correc
 3. Ask the chatbot to state whether each conclusion is directly supported by the filing.
 4. Retrieve nearby explanatory notes instead of relying only on cash-flow statement values.
 
-Rubric asks for a documented case where the bot hallucinates. Screenshot it.
-
-**Screenshot:** `results/img/...`
+**Screenshot:** 
+![Q10 hallucination case](img/q10_hallucination.png)
 
