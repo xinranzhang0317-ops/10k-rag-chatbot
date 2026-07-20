@@ -1,58 +1,55 @@
-# Hallucination case study 
+# Hallucination Case Study
 
-## Selected Question
+## Case Overview
 
-**Q10 — Capital Expenditures and AI/Cloud Infrastructure**
+**Question:**  
+Using each company’s most recent 10-K, sum capital expenditures across Alphabet, Amazon, and Microsoft, compute capital expenditures as a percentage of revenue, and identify which company is investing most aggressively in AI and cloud infrastructure.
 
-> Using each company's most recent 10-K, sum the total capital expenditures reported as purchases/additions of property and equipment across Alphabet, Amazon, and Microsoft. State each figure with its correct units, compute capex as a percentage of each company's revenue, and identify which company is investing most aggressively in AI/cloud infrastructure on a relative basis.
+## Earlier-Run Response
 
-## Chatbot Statement
+In an earlier evaluation run, the chatbot correctly calculated the company-wide capital-expenditure ratios:
 
-The chatbot concluded:
+- Microsoft: approximately **22.9%**
+- Alphabet: approximately **22.7%**
+- Amazon: approximately **18.4%**
 
-> “On a relative basis, Microsoft is investing most aggressively in AI/cloud infrastructure, with capital expenditures representing approximately 22.91% of its revenue.”
+It then concluded that Microsoft was investing most aggressively in AI and cloud infrastructure.
 
-## Why This Is a Hallucination / Unsupported Inference
+## Why This Was a Hallucination
 
-The chatbot correctly calculated each company’s total property-and-equipment spending as a percentage of revenue:
+The calculations were correct, but the conclusion was not directly supported by the filings.
 
-- Microsoft: approximately 22.9%
-- Alphabet: approximately 22.7%
-- Amazon: approximately 18.4%
+The 10-K filings disclose total company-wide capital expenditures. They do not separately disclose how much of those expenditures was specifically allocated to AI or cloud infrastructure.
 
-However, these figures represent **company-wide capital expenditures**, not AI/cloud-only spending. The 10-K filings do not separately disclose the exact portion devoted only to AI or cloud infrastructure.
-
-Therefore, the source supports this conclusion:
-
-> Microsoft had the highest company-wide capex-to-revenue ratio.
-
-But it does not fully support this stronger claim:
-
-> Microsoft was investing most aggressively in AI/cloud infrastructure.
-
-The chatbot presented an inference as though it were directly established by the filings. This is an **unsupported inference**, which can be treated as a hallucination because the interpretation goes beyond the evidence.
-
-## Corrected Answer
-
-> Microsoft had the highest company-wide property-and-equipment spending relative to revenue at approximately 22.9%, narrowly ahead of Alphabet at 22.7% and Amazon at 18.4%. However, these figures include capital expenditures for purposes beyond AI and cloud infrastructure, so they should be interpreted as company-wide capex intensity rather than a precise comparison of AI/cloud-only investment.
-
-## Failure Classification
+Therefore, the chatbot treated a broad company-wide metric as if it were a direct measure of AI- and cloud-specific investment.
 
 - **Failure type:** Unsupported inference
 - **Hallucination:** Yes
-- **Score for Q10:** 2/3
+- **Earlier-run score for Q10:** 2/3
+
+## What the Chatbot Should Have Said
+
+A better answer would be:
+
+> Microsoft had the highest company-wide capital expenditures as a percentage of revenue among the three companies. However, the filings do not separately disclose AI- or cloud-specific capital expenditures, so the available evidence is not sufficient to determine which company invested most aggressively specifically in AI and cloud infrastructure.
 
 ## Why This Case Matters
 
-This case shows that a RAG chatbot may retrieve and calculate all numbers correctly but still produce an overconfident conclusion. Reliable retrieval does not automatically guarantee reliable interpretation.
+This case shows that correct retrieval and correct arithmetic do not automatically guarantee a reliable conclusion.
 
-## How to Reduce This Failure
+A RAG chatbot can retrieve the right numbers, calculate them correctly, and still overreach when interpreting what those numbers prove.
 
-1. Require the chatbot to distinguish between directly reported facts, calculated values, and inferred conclusions.
-2. Add a prompt rule requiring caveats when the requested metric is not separately disclosed.
-3. Ask the chatbot to state whether each conclusion is directly supported by the filing.
-4. Retrieve nearby explanatory notes instead of relying only on cash-flow statement values.
+## Resolution
 
-**Screenshot:** 
+To reduce this type of failure, the prompt was revised to require the chatbot to:
+
+1. Distinguish directly reported facts from calculated values and inferred conclusions.
+2. Add a caveat when the requested metric is not separately disclosed.
+3. State whether a conclusion is directly supported by the filing.
+4. Avoid treating a broad company-wide metric as a precise proxy without qualification.
+
+After these changes, the final tuned configuration handled the boundary correctly and received full credit on the final evaluation.
+
+## Screenshot
+
 ![Q10 hallucination case](img/q10_hallucination.png)
-
