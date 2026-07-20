@@ -9,6 +9,7 @@ once PER COMPANY instead of once globally (see balanced_retrieval).
 """
 
 import os
+import re
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -25,6 +26,46 @@ import prompts
 load_dotenv()
 
 st.set_page_config(page_title="10-K Terminal", page_icon="📊", layout="wide")
+
+
+# ---------------------------------------------------------------------------
+# Text cleaning + statement tagging (Member 2's tuning: runs F, G-L)
+# ---------------------------------------------------------------------------
+
+JUNK_PATTERNS = [
+    re.compile(r"\d{4}/\d{1,2}/\d{1,2}\s+\d{1,2}:\d{2}"),   # print timestamps
+    re.compile(r"sec\.gov/Archives"),                        # browser URL lines
+    re.compile(r"第\s*\d+\s*/\s*\d+\s*⻚"),                  # page-count artifacts
+]
+
+
+def clean_page_text(text):
+    """Strip browser-print junk (timestamps, URLs) that made every page look
+    similar to the embedder and buried the financial tables."""
+    lines = text.split("\n")
+    kept = [ln for ln in lines if not any(p.search(ln) for p in JUNK_PATTERNS)]
+    return "\n".join(kept)
+
+
+STATEMENT_MARKERS = [
+    "STATEMENTS OF CASH FLOWS", "STATEMENTS OF OPERATIONS",
+    "STATEMENTS OF INCOME", "INCOME STATEMENTS",
+    "REPORTABLE SEGMENTS", "SEGMENT RESULTS",
+    "SEGMENT REVENUE, COST OF REVENUE",
+    "INFORMATION ABOUT SEGMENTS",
+    "SUPPLEMENTAL CASH FLOW", "CASH PAID FOR INCOME TAXES",
+    "ADDITIONS TO PROPERTY AND EQUIPMENT",
+    "EFFECTIVE TAX RATE", "STATUTORY RATE",
+    "COMPONENTS OF THE PROVISION FOR INCOME TAXES",
+]
+
+# Fixed fallback pages per company that are always included, no search
+# involved. Needed for tables that lose even the statement-slot search.
+PINNED_PAGES = {
+    "Alphabet":  {49, 52, 86, 87},
+    "Amazon":    {59, 60, 102, 103, 108},
+    "Microsoft": {67, 86, 89, 90, 124, 125, 126, 142},
+}
 
 
 # ---------------------------------------------------------------------------
@@ -64,9 +105,15 @@ def build_llm(choice: str):
 # ---------------------------------------------------------------------------
 
 def load_and_tag(company: str, path: str):
-    """Load one company's 10-K and stamp every chunk with its company name."""
+    """Load one company's 10-K, clean junk page text, tag statement pages,
+    and stamp every chunk with its company name."""
     loader = PyPDFLoader(path)
     pages = loader.load()
+
+    for pg in pages:
+        pg.page_content = clean_page_text(pg.page_content)
+        if any(marker in pg.page_content.upper() for marker in STATEMENT_MARKERS):
+            pg.metadata["doc_type"] = "statement"
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=config.CHUNK_SIZE,
@@ -144,7 +191,7 @@ def balanced_retrieval(store, query: str, companies: list, k_each: int):
     """
     docs = []
     for company in companies:
-        hits = store.similarity_search(question, k=k_each, filter={"company": company}, fetch_k=2000)
+        hits = store.similarity_search(query, k=k_each, filter={"company": company}, fetch_k=2000)
         docs.extend(hits)
     return docs
 
@@ -276,15 +323,18 @@ company's wording sits farther from the query in vector space — the model neve
 sees its numbers, so it either refuses or invents them.
 
 This app tags every chunk with its source company and searches **each company
-separately**, guaranteeing every selected filing is represented in the context:
+separately**, guaranteeing every selected filing is represented in the context.
+It also labels pages containing core financial statements and gives those a
+second, targeted search — number-heavy tables often don't resemble the
+question's wording, so they lose the normal search to prose sections.
 
 ```
 question ──► search Alphabet chunks  ──┐
         ───► search Amazon chunks    ──┼──► grouped context ──► LLM ──► cited answer
-        ───► search Microsoft chunks ──┘        (k per company)
+        ───► search Microsoft chunks ──┘        (k per company + statement slots)
 ```
 
-**Stack** · Streamlit · LangChain · FAISS · Ollama `nomic-embed-text`
+**Stack** · Streamlit · LangChain · FAISS · Ollama `mxbai-embed-large`
 embeddings · Gemini / local Ollama LLMs (switchable) · anti-hallucination
 system prompt (refuses rather than guesses, cites company + page).
         """
@@ -322,6 +372,36 @@ with tab_chat:
                     hits = store.similarity_search(question, k=k_each, filter={"company": company}, fetch_k=2000)
                     st.write(f"→ {len(hits)} relevant sections")
                     docs.extend(hits)
+
+                # Statement-slot search: number-heavy tables often don't match
+                # the question's wording, so a second search limited to pages
+                # tagged as core financial statements adds coverage.
+                seen = {d.page_content[:100] for d in docs}
+                for company in selected:
+                    stmt_hits = store.similarity_search(
+                        question, k=10,
+                        filter={"company": company, "doc_type": "statement"},
+                        fetch_k=2000,
+                    )
+                    for d in stmt_hits:
+                        if d.page_content[:100] not in seen:
+                            docs.append(d)
+                            seen.add(d.page_content[:100])
+
+                # Pinned pages: a small fixed list of core statement pages per
+                # company always included, no search involved. Needed for two
+                # Microsoft table pages that lose even the statement-slot search.
+                for d in store.docstore._dict.values():
+                    comp = d.metadata.get("company")
+                    if (
+                        comp in selected
+                        and comp in PINNED_PAGES
+                        and d.metadata.get("page") in PINNED_PAGES[comp]
+                        and d.page_content[:100] not in seen
+                    ):
+                        docs.append(d)
+                        seen.add(d.page_content[:100])
+
                 context = format_context(docs)
                 status.update(
                     label=f"Retrieved {len(docs)} sections — generating answer…",
