@@ -19,15 +19,14 @@ COMPANIES = {
 
 # ---------------------------------------------------------------------------
 # RAG parameters  <-- MEMBER 2 OWNS THESE NUMBERS
+# Applied from Angela's tuning (results/rag_tuning.md): 29/30 on the eval set
+# with cleaning + statement tagging + these values.
 # ---------------------------------------------------------------------------
 CHUNK_SIZE = 1500
 CHUNK_OVERLAP = 150
-K_PER_COMPANY = 8
 
-# Chunks retrieved PER COMPANY (not globally). With 3 companies selected and
-# K_PER_COMPANY=3, the LLM sees 9 chunks: 3 from each. This is what stops the
-# model from answering a comparison question using only Amazon's filing.
-# K_PER_COMPANY = 3
+# Chunks retrieved PER COMPANY (not globally).
+K_PER_COMPANY = 8
 
 # ---------------------------------------------------------------------------
 # Models  <-- MEMBER 3 OWNS THIS RECOMMENDATION
@@ -35,14 +34,14 @@ K_PER_COMPANY = 8
 
 # Default: local embeddings (no API quota) + Gemini for generation (fast, good
 # synthesis). Both switchable in the sidebar.
-# DEFAULT_EMBEDDING = "Ollama (nomic-embed-text)"
-DEFAULT_EMBEDDING = "Ollama (mxbai-embed-large)" # member 2's  recommendation
+DEFAULT_EMBEDDING = "Ollama (mxbai-embed-large)"
 DEFAULT_LLM = "Gemini (gemini-flash-latest)"
 
 EMBEDDING_OPTIONS = {
+    # Angela's 29/30 run used mxbai-embed-large: ollama pull mxbai-embed-large
+    "Ollama (mxbai-embed-large)": {"provider": "ollama", "model": "mxbai-embed-large"},
     "Ollama (nomic-embed-text)": {"provider": "ollama", "model": "nomic-embed-text"},
     "Gemini (gemini-embedding-001)": {"provider": "gemini", "model": "models/gemini-embedding-001"},
-    "Ollama (mxbai-embed-large)": {"provider": "ollama", "model": "mxbai-embed-large"}
 }
 
 LLM_OPTIONS = {
